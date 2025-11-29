@@ -59,9 +59,9 @@ Notes:
 ```bash
 # From File-Deduplicator
 go mod init filededuplicator && go mod tidy
-go run -tags cli . /Users/karol/Documents/Pobrane/ sha512
+go run -tags cli . /path/to/scan sha512
 # or with deletion
-go run -tags cli . /Users/karol/Documents/Pobrane/ sha512 --delete
+go run -tags cli . /path/to/scan sha512 --delete
 ```
 
 ## Run the GUI (optional)
