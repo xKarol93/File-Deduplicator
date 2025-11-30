@@ -1,13 +1,15 @@
 # File Deduplicator
 
-A fast, concurrent file deduplicator that scans a directory tree, computes cryptographic hashes (MD5/SHA1/SHA256/SHA512) for all files, detects duplicates, and writes them to `duplicate_files.txt`. The CLI in this repository is standalone. A Fyne-based GUI exists in a separate project (not part of this GitHub repo). Both implementations share the same scanning and hashing logic so results are consistent.
+A fast, concurrent file deduplicator that scans a directory tree, computes cryptographic hashes (MD5/SHA1/SHA256/SHA512/BLAKE3) for files, detects duplicates, and writes them to `duplicate_files.txt`. The CLI in this repository is standalone. A Fyne-based GUI exists in a separate project (not part of this GitHub repo). Both implementations share the same scanning and hashing logic so results are consistent.
 
 ## Features
 - Recursive directory scan
 - Concurrent hashing with a worker pool
-- Selectable hash algorithm (default: SHA512)
+- Selectable hash algorithm (MD5/SHA1/SHA256/SHA512/BLAKE3; default SHA256)
+- BLAKE3 support for high-speed hashing
 - Duplicate detection with total potential space savings
 - Outputs duplicates list to `duplicate_files.txt`
+- Optional JSON output (`duplicates.json`) when using `--json`
 - Optional GUI (Fyne) exists as a separate project and is not included in this repository.
 
 ## Requirements
@@ -20,7 +22,7 @@ A fast, concurrent file deduplicator that scans a directory tree, computes crypt
   - `ui.go`: Fyne-based UI that calls `ScanDirectory`
   - `file_explorer.go`: same dedup logic reused by the GUI
 
-Shared code: the `ScanDirectory` function and hashing pipeline are identical in both the CLI and GUI, ensuring parity of duplicate detection and performance characteristics.
+Shared code: the scanning and hashing pipeline is identical in both the CLI and GUI (`ScanDirectory` under the hood), ensuring parity of duplicate detection and performance characteristics.
 
 ## Build & Run (CLI)
 From the current folder (`File-Deduplicator`):
@@ -30,27 +32,26 @@ From the current folder (`File-Deduplicator`):
 go mod init filededuplicator
 go mod tidy
 
-# Run the deduplicator (default SHA512) via CLI build tag
-# (uses cli_main.go; excludes GUI files)
-go run -tags cli . /path/to/scan sha512
+# Run the deduplicator (default SHA256) via CLI build tag
+# Flags: --directory (required), --algorithm, --json, --delete
+go run -tags cli . --directory "/path/to/scan" --algorithm sha256
 
-# Or run by listing files (without tags)
-# (explicitly compiles only CLI files)
-go run cli_main.go file_explorer.go /path/to/scan sha256
+# Enable JSON output (writes duplicates.json)
+go run -tags cli . --directory "/path/to/scan" --algorithm blake3 --json
 
 # Optional: delete duplicates after scan
-# (reads duplicate_files.txt and removes files)
-go run -tags cli . /path/to/scan sha512 --delete
+# Removes duplicates as they stream and those listed in duplicate_files.txt
+go run -tags cli . --directory "/path/to/scan" --algorithm sha512 --delete
 
 # Build a CLI binary
 # (outputs ./dedup in the current directory)
 go build -tags cli -o dedup
-./dedup /path/to/scan sha512
+./dedup --directory "/path/to/scan" --algorithm sha512
 ```
 
 Notes:
-- The CLI expects two args: directory and algorithm.
-- It writes duplicates to `duplicate_files.txt` in the current working directory.
+- The CLI uses flags (no positional args): `--directory` (required), `--algorithm` (md5|sha1|sha256|sha512|blake3; default sha256), `--json`, `--delete`.
+- It writes duplicates to `duplicate_files.txt` in the current working directory; with `--json`, it also writes `duplicates.json`.
 - Prefer `-tags cli` to include the CLI entrypoint (`cli_main.go`) and exclude GUI files.
 - If you see "no required module provides package" for Fyne, you're running GUI files from the wrong folder — use the GUI instructions below.
 
@@ -59,9 +60,9 @@ Notes:
 ```bash
 # From File-Deduplicator
 go mod init filededuplicator && go mod tidy
-go run -tags cli . /path/to/scan sha512
+go run -tags cli . --directory "/path/to/scan" --algorithm sha256
 # or with deletion
-go run -tags cli . /path/to/scan sha512 --delete
+go run -tags cli . --directory "/path/to/scan" --algorithm sha512 --delete
 ```
 
 ## Run the GUI (optional)
@@ -93,8 +94,14 @@ Notes:
  - The GUI requires its own module with Fyne dependencies in its project. Do not run GUI files from `File-Deduplicator`.
 
 ## Hash Algorithm Choice
-- MD5/SHA1 are faster but weaker; use for quick local dedup checks
-- SHA256/SHA512 are stronger; recommended when integrity matters
+- MD5/SHA1: faster, weaker integrity – quick local cleanup
+- SHA256/SHA512: stronger integrity – when you need maximum certainty
+- BLAKE3: very fast modern hash (excellent speed/integrity balance for dedup)
+
+Example (use BLAKE3):
+```bash
+go run -tags cli . --directory "/path/to/scan" --algorithm blake3
+```
 
 ## Performance
 - Hashing runs concurrently with a bounded worker pool (semaphore)

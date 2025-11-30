@@ -8,26 +8,19 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/alexflint/go-arg"
 )
 
 func main() {
-	removeDuplicates := false
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: dedup <directory> [algorithm] [--delete]\nAlgorithms: md5 | sha1 | sha256 | sha512 (default: sha512)\nOptions: --delete  Remove duplicates after scan (reads duplicate_files.txt)")
-		os.Exit(1)
+	var args struct {
+		Directory string `arg:"-d, --directory,required" help:"Directory to scan for duplicate files"`
+		Algorithm string `arg:"-a, --algorithm" default:"sha256" help:"Hashing algorithm (md5 | sha1 | sha256 | sha512 | blake3)"`
+		Remove    bool   `arg:"-r, --delete" help:"Remove duplicates after scan (reads duplicate_files.txt)"`
+		Json      bool   `arg:"-j, --json" help:"Also write duplicates.json with duplicate details"`
 	}
-	directory := os.Args[1]
-	algorithm := "sha512"
-	if len(os.Args) >= 3 && os.Args[2] != "" {
-		algorithm = os.Args[2]
-	}
-	doDelete := false
-	if len(os.Args) >= 4 && os.Args[3] == "--delete" {
-		doDelete = true
-	}
-	if len(os.Args) >= 4 && os.Args[3] == "true" {
-		removeDuplicates = true
-	}
+	arg.MustParse(&args)
+	fmt.Printf("Scanning directory: %s using algorithm: %s\n", args.Directory, args.Algorithm)
 
 	out := make(chan string, 1024)
 	dups := make(chan string, 1024)
@@ -44,7 +37,7 @@ func main() {
 		defer wg.Done()
 		for f := range dups {
 			fmt.Println(f)
-			if removeDuplicates {
+			if args.Remove {
 				err := os.Remove(f)
 				if err != nil {
 					fmt.Printf("Error removing file %s: %v\n", f, err)
@@ -55,11 +48,11 @@ func main() {
 		}
 	}()
 
-	ScanDirectory(directory, algorithm, out, dups)
+	ScanDirectory(args.Directory, args.Algorithm, args.Json, out, dups)
 	close(dups)
 	wg.Wait()
 
-	if doDelete {
+	if args.Remove {
 		fmt.Println("Deletion flag set: removing duplicates listed in duplicate_files.txt...")
 		f, err := os.Open("duplicate_files.txt")
 		if err != nil {
