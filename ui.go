@@ -59,10 +59,13 @@ func main() {
 	scanBtn := widget.NewButton("Scan", nil)
 	scanBtn.Importance = widget.HighImportance
 
-	hasRadio := widget.NewRadioGroup([]string{"MD5", "SHA1", "SHA256", "SHA512"}, func(selected string) {
+	hasRadio := widget.NewRadioGroup([]string{"MD5", "SHA1", "SHA256", "SHA512", "BLAKE3"}, func(selected string) {
 	})
 	hasRadio.Horizontal = true
-	hasRadio.SetSelected("SHA512")
+	hasRadio.SetSelected("SHA256")
+
+	hasCheck := widget.NewCheck("Write duplicates.json", nil)
+	hasCheck.SetChecked(false)
 
 	clearBtn := widget.NewButton("Clear output", nil)
 	clearBtn.Disabled()
@@ -72,12 +75,15 @@ func main() {
 	deleteBtn.Disabled()
 
 	scanBtn.OnTapped = func() {
+		duplicateJSON := false
 		dir := pathEntry.Text
 		if dir == "" {
-			statusBinding.Set("Podaj ścieżkę do skanowania")
+			statusBinding.Set("Set scan directory first")
 			return
 		}
-
+		if hasCheck.Checked {
+			duplicateJSON = true
+		}
 		selectedAlgo := hasRadio.Selected
 		scanBtn.Disable()
 		statusBinding.Set("Scanning...")
@@ -87,7 +93,7 @@ func main() {
 		progress := make(chan string, 256)
 		start_time := time.Now()
 
-		go ScanDirectory(dir, selectedAlgo, lines, progress)
+		go ScanDirectory(dir, selectedAlgo, duplicateJSON, lines, progress)
 
 		go func() {
 			var accum strings.Builder
@@ -218,6 +224,8 @@ func main() {
 		spacer,
 		hashing_title,
 		hasRadio,
+		spacer,
+		hasCheck,
 		spacer,
 		hbox,
 		statusLabel,
